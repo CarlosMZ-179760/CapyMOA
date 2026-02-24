@@ -133,7 +133,7 @@ ignore-vcs = true
 # Ensures that the MOA jar file is downloaded before the build starts.
 commands = [
     "python -m invoke build.download-moa",
-    "python -m invoke build.stubs"
+    #"python -m invoke build.stubs"
 ]
 artifacts = []
 
