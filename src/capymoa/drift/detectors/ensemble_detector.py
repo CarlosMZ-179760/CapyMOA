@@ -77,6 +77,7 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
             self.idx = 0
             
     def pretrain(self, dataset : [float]):
+        """ Receives a dataset that should include multiple types of drift. The dataset mst be synthetic, as the location for every concept drift and its type must be known beforehand. The states of the ensemble are saved in training_report"""
         self.training_data=dataset
         detection_history=[]
         for datapoint in self.training_data:
@@ -85,4 +86,5 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
         self.training_report=detection_history
     
     def describe_drifts(self):
+        """ Using training_report and the known drift locations in training_data, this method should extract which states of the ensemble correspond to different types of drift, or which can be ignored. This way, different types of drift could be characterized depending on their corresponding states."""
         raise NotImplementedError
