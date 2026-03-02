@@ -8,10 +8,10 @@ import capymoa.drift.detectors as detectors
 from typing import Any, Dict
 
 class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector would require the warnings and drift detections be returned as booleans, 
-    def __init__(self, detectorDict=[("HDDM_A", None),("EDDM", None),("ADWIN", None)]):
+    def __init__(self, detectorDict=[("HDDMAverage", {}),("CUSUM", {}),("ADWIN", {})]):
         detectorSet=[]
         for detector_name, detector_args in detectorDict:
-            detectorSet.append(getattr(detectors, detector_name)(detector_args))
+            detectorSet.append(getattr(detectors, detector_name)(**detector_args))
         self.baseDetectorsList=detectorSet
         self.idx=0
         self.training_data=[]
