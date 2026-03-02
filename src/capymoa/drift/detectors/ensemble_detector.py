@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sun Mar  1 12:54:58 2026
-
-@author: Carlos Martínez Zurita
+    Uses multiple detectors as an ensemble. These can each be better suited to detect different types of drift, and their outputs analysed to recognise multiple different types of drift, thus mitigating the weaknesses each individual method might have (pending testing)
 """
 import capymoa.drift.detectors as detectors
 from typing import Any, Dict
 
 class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector would require the warnings and drift detections be returned as booleans, 
-    def __init__(self, detectorDict=[("HDDMAverage", {}),("CUSUM", {}),("ADWIN", {})]):
+    def __init__(self, detectorDict=[("HDDMAverage", {}),("CUSUM", {}),("ADWIN", {})]): #Would it be preferable to pass the detector list as an argument directly?
         detectorSet=[]
         for detector_name, detector_args in detectorDict:
             detectorSet.append(getattr(detectors, detector_name)(**detector_args))
@@ -20,10 +18,12 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
         """Get the hyper-parameters of the drift detector."""
         return {
             "baseDetectorsList": self.baseDetectorsList,
-            "idx": self.idx
+            "idx": self.idx,
+            "training_data":self.training_data,
+            "training_report":self.training_report
         }
     
-    def add_element(self, element : float):
+    def add_element(self, element : float)->None:
         """Update each of the base detectors with a new input value.
 
         :param element: A value to update the drift detector with. Usually,
@@ -46,25 +46,30 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
                 states.append(0)
         return states
     
-    def get_all_base_warnings(self):
+    def get_all_base_warnings(self) ->[[int]]:
+        """Returns the warning indexes of the base detectors
+        """
         base_warnings=[]
         for detector in self.baseDetectorsList:
             base_warnings.append(detector.warning_index)
         return base_warnings
     
-    def get_all_base_detections(self):
+    def get_all_base_detections(self)-> [[int]]:
+        """Returns the detection indexes of the base detectors
+        """
         base_detections=[]
         for detector in self.baseDetectorsList:
             base_detections.append(detector.detection_index)
         return base_detections
     
     def reset(self, clean_history: bool = False) -> None:
-        """Reset the drift detector.
+        """Reset the ensemble training data.
 
         :param clean_history: Whether to reset detection history, defaults to False
         """
         
-        
+        self.training_data=[]
+        self.training_report=[]
 
         if clean_history:
             self.detection_index = []
@@ -78,3 +83,6 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
             self.add_element(datapoint)
             detection_history.append(self.get_states())
         self.training_report=detection_history
+    
+    def describe_drifts(self):
+        raise NotImplementedError
