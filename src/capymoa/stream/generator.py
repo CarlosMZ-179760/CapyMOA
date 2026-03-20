@@ -3,6 +3,9 @@
 import copy
 
 from capymoa.stream import MOAStream
+
+
+from moa.streams.generators.cd import GenericChangeGenerator as MOA_GenericChangeGenerator
 from moa.streams.generators import RandomTreeGenerator as MOA_RandomTreeGenerator
 from moa.streams.generators import SEAGenerator as MOA_SEAGenerator
 from moa.streams.generators import HyperplaneGenerator as MOA_HyperplaneGenerator
@@ -23,7 +26,9 @@ from moa.streams.generators import SineGenerator as MOA_SineGenerator
 from moa.streams.generators import MixedGenerator as MOA_MixedGenerator
 from capymoa._utils import build_cli_str_from_mapping_and_locals
 
-
+class GenericChangeGenerator:
+    def __init__(self):
+        self.moa_stream = MOA_RandomTreeGenerator()
 class RandomTreeGenerator(MOAStream):
     """Stream generator for a stream based on a randomly generated tree.
 
