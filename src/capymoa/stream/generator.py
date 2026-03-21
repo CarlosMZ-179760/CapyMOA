@@ -26,9 +26,70 @@ from moa.streams.generators import SineGenerator as MOA_SineGenerator
 from moa.streams.generators import MixedGenerator as MOA_MixedGenerator
 from capymoa._utils import build_cli_str_from_mapping_and_locals
 
-class GenericChangeGenerator:
-    def __init__(self):
-        self.moa_stream = MOA_RandomTreeGenerator()
+class GenericChangeGenerator(MOAStream):
+    def __init__(
+        self,
+        number_of_drifts : int = 1,
+        low_error_level : float = 0.1,
+        incr_error_level : float = 0.2,
+        duration_stable_concept : int = 1000,
+        duration_change : int = 0,
+        noise_stable_concept : float = 0.0,
+        noise_change : float = 0.0,
+        instance_random_seed : int = 1
+    ):
+        self.__init_args_kwargs__ = copy.copy(
+            locals()
+        )  # save init args for recreation. not a deep copy to avoid unnecessary use of memory
+        
+        self.moa_stream = MOA_GenericChangeGenerator()
+
+        self.number_of_drifts = number_of_drifts
+        self.low_error_level = low_error_level
+        self.incr_error_level = incr_error_level
+        self.duration_stable_concept = duration_stable_concept
+        self.duration_change = duration_change
+        self.noise_stable_concept = noise_stable_concept
+        self.noise_change = noise_change
+        self.instance_random_seed = instance_random_seed
+        #self.leaf_fraction = leaf_fraction
+
+        self.CLI = f"-A {self.number_of_drifts} -B {self.low_error_level} \
+            -C {self.incr_error_level} -D {self.duration_stable_concept} -E {self.duration_change}\
+            -F {self.noise_stable_concept} -G {self.noise_change} -i {self.instance_random_seed}"
+
+        # self.moa_stream.getHeader()
+
+        super().__init__(CLI=self.CLI, moa_stream=self.moa_stream)
+    def __str__(self):
+        attributes = [
+            (
+                f"number_of_drifts={self.number_of_drifts}"
+                if self.number_of_drifts != 1
+                else None
+            ),
+            (
+                f"low_error_level={self.low_error_level}"
+                if self.low_error_level != 0.1
+                else None
+            ),
+            f"incr_error_level={self.incr_error_level}" if self.incr_error_level != 0.2 else None,
+            f"duration_stable_concept={self.duration_stable_concept}" if self.duration_stable_concept != 1000 else None,
+            f"duration_change={self.duration_change}" if self.duration_change != 0 else None,
+            (
+                f"noise_stable_concept={self.noise_stable_concept}"
+                if self.noise_stable_concept != 0.0
+                else None
+            ),
+            (
+                f"noise_change={self.noise_change}"
+                if self.noise_change != 0.0
+                else None
+            ),
+        ]
+
+        non_default_attributes = [attr for attr in attributes if attr is not None]
+        return f"GenericChangeGenerator({', '.join(non_default_attributes)})"
 class RandomTreeGenerator(MOAStream):
     """Stream generator for a stream based on a randomly generated tree.
 
