@@ -39,9 +39,9 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
         states=[]
         for detector in self.baseDetectorsList:
             if (detector.detected_change()):
-                states.append(1)
-            elif(detector.detected_warning()):
                 states.append(2)
+            elif(detector.detected_warning()):
+                states.append(1)
             else:
                 states.append(0)
         return states
