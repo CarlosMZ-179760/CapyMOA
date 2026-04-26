@@ -36,7 +36,8 @@ class GenericChangeGenerator(MOAStream):
         duration_change : int = 0,
         noise_stable_concept : float = 0.0,
         noise_change : float = 0.0,
-        instance_random_seed : int = 1
+        instance_random_seed : int = 1,
+        valid_delay : int = 1000000000
     ):
         self.__init_args_kwargs__ = copy.copy(
             locals()
@@ -51,12 +52,13 @@ class GenericChangeGenerator(MOAStream):
         self.duration_change = duration_change
         self.noise_stable_concept = noise_stable_concept
         self.noise_change = noise_change
+        self.valid_delay = valid_delay
         self.instance_random_seed = instance_random_seed
         #self.leaf_fraction = leaf_fraction
 
         self.CLI = f"-A {self.number_of_drifts} -B {self.low_error_level} \
             -C {self.incr_error_level} -D {self.duration_stable_concept} -E {self.duration_change}\
-            -F {self.noise_stable_concept} -G {self.noise_change} -i {self.instance_random_seed}"
+            -F {self.noise_stable_concept} -G {self.noise_change} -H {self.valid_delay} -i {self.instance_random_seed}"
 
         # self.moa_stream.getHeader()
 
