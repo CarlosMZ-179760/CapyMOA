@@ -328,8 +328,8 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
         #weakLearner=CategoricalNB()
         #classifier = AdaBoostClassifier(n_estimators=10,estimator=weakLearner)
         #classifier.fit(self.training_report[0], self.training_report[1])
-        classifier=OzaBoost(self.training_report.get_schema(), 
-                              base_learner="bayes.NaiveBayes"
+        classifier=OzaBoost(self.training_report.get_schema()
+                            ,base_learner="bayes.NaiveBayes"
                               )
         # #print(self.training_report.get_schema())
         i=0
