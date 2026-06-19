@@ -6,6 +6,7 @@ import numpy as np
 import capymoa.drift.detectors as detectors
 from typing import Any, Dict
 import capymoa.stream.generator as streamGen
+from capymoa.drift.base_detector import BaseDriftDetector
 from capymoa.stream import Stream, Schema, NumpyStream
 from capymoa.instance import Instance, LabeledInstance
 from capymoa.classifier import OzaBoost, MajorityClass, NaiveBayes
@@ -16,14 +17,14 @@ from collections import defaultdict
 import itertools
 import collections
 
-class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector would require the warnings and drift detections be returned as booleans, 
+class EnsembleDetector(BaseDriftDetector): #Inheriting from BaseDriftDetector of MOADriftDetector would require the warnings and drift detections be returned as booleans, 
     def __init__(self, 
-                 datasetSize : int,
-                 dataset : Stream, 
+                 #datasetSize : int,
+                 #dataset : Stream, 
                  detectorDict=[("ADWIN",{}),
                                ("CUSUM",{}),
                                ("DDM",{}),
-                               #("GeometricMovingAverage",{}),
+                               #("EWMAChart",{}),
                                ("HDDMAverage",{}),
                                ("HDDMWeighted",{})],
                  valid_delay: int = 500,
@@ -37,6 +38,7 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
             detectorNames.append(detector_name)
             schemaFeatures.append(detector_name)
         self.baseDetectorNameList=detectorNames
+        self.numberOfDetectors=len(self.baseDetectorNameList)
         self.detection_index=[]
         self.resultsDictionary=[]
         #print(self.baseDetectorNameList)
@@ -55,15 +57,18 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
         self.validDelay=valid_delay
         self.maxsWindow=np.array([[0, self.validDelay] for detector in self.baseDetectorNameList])
         self.in_concept_change=False
-        self.datasetSize=datasetSize
-        self.training_data : Stream=dataset
+        self.frequencies={}
         #print(self.training_data)
-        self.training_report=[]
+        #self.training_report=[]
         #print("Iniiaospreentrenaiento",flush=True)
-        self.pretrain()
+        #self.pretrain()
         #print("Iniiaosdescripion",flush=True)
-        self.describe_drifts()
-        
+        #self.describe_drifts()
+    
+    def feed_training_data(self,dataset_size, dataset):
+        self.datasetSize=dataset_size
+        self.training_data : Stream=dataset
+    
     def get_params(self) -> Dict[str, Any]:
         """Get the hyper-parameters of the drift detector."""
         return {
@@ -84,44 +89,45 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
             instance=Instance.from_array(self.training_report.get_schema(), np.array(reading))
             prediction=self.driftDetectionModel.predict(instance)
             
-            if (self.frequencies[reading]==0) :
+            #if (self.frequencies[reading]==0) :
                 # print(reading,self.frequencies[reading])
-                j+=1
+            #    j+=1
             # print("Resultados del clasificador",reading, prediction, flush=True)
             #if prediction is None:
             #    prediction=self.__get_lower_results__(reading, dictResults)
             dictResults[reading]=prediction
         # i=0
+        correctedDict=self.__get_lower_results__(dictResults)
         # for reading, value in dictResults.items():
         #     if (value == 1):
         #         i+=1
         #         print("No value found",reading ,i,flush=True)
         #     if(dictResults[reading]==1):
         #         print("Resultados en el diccionario",reading, dictResults[reading], flush=True)
-        print("Número y fracción de estados no visitados",j,float(j)/243.0,flush=True)
-        self.resultsDictionary=dictResults
-    
-    # def __get_lower_results__(self, reading, dictionary):
-    #     readingList=list(reading)
-    #     #print("Elemento recibido", readingList)
-    #     for i in range(len(reading)):
-            
-    #         readingItemCounter=list(reading)
-    #         #print("¿Elemento recibido?",readingList)
-    #         #print("Centro de recursión",readingItemCounter, "Pivote",i, flush=True)
-    #         if readingItemCounter[i]!=0:
-    #             readingItemCounter[i]-=1
-    #             #print(readingItemCounter)
-    #             readingNew=tuple(readingItemCounter)
-    #             #print("Resultados en recursión",readingNew,dictionary[readingNew], flush=True)
-    #             if dictionary[readingNew]==1:
-    #                 return 1
-    #             #:
+        print("Número y fracción de estados no visitados",len(self.frequencies),len(self.frequencies)/(3**(self.numberOfDetectors)),flush=True)
+        self.resultsDictionary=correctedDict
+        #print(correctedDict)
+    def __get_lower_results__(self,dictionary):
+        newDictionary=dictionary
+        for key, value in dictionary.items():
+            readingItemCounter=list(key)
+            if value==0:
+                #print("Centro de recursión",readingItemCounter, flush=True)
+                for i in range(self.numberOfDetectors):
+                    if readingItemCounter[i]!=0:
+                        readingItemCounter[i]-=1
+                        #print(readingItemCounter)
+                        readingNew=tuple(readingItemCounter)
+                        #print("Resultados en recursión",readingNew,dictionary[readingNew], flush=True)
+                        if dictionary[readingNew]==1:
+                            newDictionary[key]=1
+                            break
+                #:
                     
-    #                 #readingItemCounter[i]+=1
-    #                 #readingNew=tuple(readingList)
-    #                 #return self.__get_lower_results__(readingNew, dictionary)
-    #     return 0
+                    #readingItemCounter[i]+=1
+                    #readingNew=tuple(readingList)
+                    #return self.__get_lower_results__(readingNew, dictionary)
+        return newDictionary
     
     def add_element(self, element : float)->None:
         """Update each of the base detectors with a new input value.
@@ -129,6 +135,8 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
         :param element: A value to update the drift detector with. Usually,
             this is the prediction error of a model.
         """
+        if self.detected_change():
+            self.reset()
         self.idx+=1
         for detector in self.baseDetectorsList:
             detector.add_element(element)
@@ -157,9 +165,11 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
         #print(self.idx)
         #print(self.driftDetectionModel.predict(instance))
         if(prediction):
+            #print("De detecta cambio")
             self.in_concept_change=True
             self.detection_index.append(self.idx)
-            self.reset()
+            #print("Se debe reiniciar")
+            #self.reset()
             
         
     
@@ -209,6 +219,7 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
         return self.detection_index
     
     def detected_change(self)-> bool :
+        #print("Compropbando cambio")
         return self.in_concept_change
     
     def reset(self, clean_history: bool = False) -> None:
@@ -216,9 +227,10 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
 
         :param clean_history: Whether to reset detection history, defaults to False
         """
+        #print("Resetting")
         for detector in self.baseDetectorsList:
             detector.reset()
-        self.in_concept_change==False
+        self.in_concept_change=False
         self.maxsWindow=np.array([[0, self.validDelay] for i in range(len(self.baseDetectorNameList))])
         if clean_history:
             #self.maxsWindow=[[0, self.validDelay] for detector in self.baseDetectorNameList]
@@ -226,21 +238,27 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
             self.warning_index = []
             self.idx = 0
             
-    def pretrain(self):
+    def deleteDetections(self):
+        self.detection_index = []
+        self.warning_index = []
+        self.idx = 0   
+        
+    def preprocess_training_data(self):
         #dataSchema : Schema=self.training_data.get_schema()
         #print(self.training_data.next_instance())
         #print(dataSchema, dataSchema.get_label_indexes())
         """ Receives a dataset that should include multiple types of drift. The dataset must be synthetic, as the location for every concept drift and its type must be known beforehand. The states of the ensemble are saved in training_report"""
         #detection_history=np.empty
         maxTrue=[0,self.validDelay]
-        trueDrifts=np.empty(shape=[self.datasetSize, 1])
-        maxsDict=np.array([[0,self.validDelay] for i in range(len(self.baseDetectorNameList))])
-        allDetections=np.empty(shape=[self.datasetSize, len(self.baseDetectorsList)])
+        trueDrifts=np.empty(shape=[self.datasetSize, 1], dtype=np.int8)
+        maxsDict=np.array([[0,self.validDelay] for detector in range(len(self.baseDetectorNameList))],dtype=np.int16)
+        allDetections=np.empty(shape=[self.datasetSize, len(self.baseDetectorsList)],dtype=np.int8)
         i=0
-        k=0
+        #k=0
         for instance  in self.training_data:
             # print(instance)
-            # print(i)
+            # if i<4:
+            #     print(i)
             flagWipe=False
             exitConceptDetectionWindow=False
             #print(instance.schema, instance)
@@ -290,19 +308,21 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
                     
             #print("Instance Detections= ", instanceDetections)
             if not flagWipe:
+                
                 allDetections[i,:]=instanceDetections[:]
+                #print(instanceDetections, allDetections[i,:],i)
                 trueDrifts[i,0]=maxTrue[0]
+                i+=1
                 # print("Resultados de los detectores", allDetections[i,:])
                 # print("Diccionario de máximos", maxsDict)
                 # print("Lectura de cambio aceptable: ",trueDrifts[i,0])
                 # print("Eliminación de instancia, salida de cambio de concepto",flagWipe, exitConceptDetectionWindow)
-            else:
-                k+=1
+            #else:
+                #k+=1
                 #print(instance, maxTrue,instanceDetections)
                 #print("Purged element number ", i)
             #print("All detections= ", allDetections)
-            i+=1
-            #print(i)
+            
             #Pasa las etiquetas como list, los resultados de los detectores como array de arrays (vease NumpyArray)
             # print("Cambio", self.training_data[1,i])
             # instance=self.get_states()
@@ -311,18 +331,36 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
             # detection_history[i]=instance
         #Si el delay aceptado es bajo (<MTTD) y los cambios muy frecuentes, pueden etiquetarse las instancias donde ningún sensor detecte cambio, como instancias con cambio
         #detectionHistory=(allDetections, np.reshape(trueDrifts, shape=self.datasetSize))
-        self.frequencies=collections.Counter(map(tuple,allDetections))
-        detectionHistory : NumpyStream[LabeledInstance]=NumpyStream(allDetections, 
-                                                                    trueDrifts, 
+        #allDetections=allDetections[:i,:]
+        purgedDetections=allDetections[:i]
+        purgedTrueDrifts=trueDrifts[:i]
+        
+        del allDetections
+        del trueDrifts
+        
+        detectionHistory : NumpyStream[LabeledInstance]=NumpyStream(purgedDetections, 
+                                                                    purgedTrueDrifts, 
                                                                     dataset_name='detectionStream', 
                                                                     feature_names=self.baseDetectorNameList, 
                                                                     target_name='Ground-truth', 
                                                                     target_type='categorical')
+        #expandedReading=np.concatenate((purgedDetections, purgedTrueDrifts), axis=1)
+        #print(expandedReading)
+        self.frequencies=collections.Counter(self.frequencies)+collections.Counter(map(tuple,purgedDetections))
+        #print(self.frequencies)
         #print(detectionHistory.get_schema())
+        # l=0
+        # for instance in detectionHistory:
+        #     print(allDetections[l,:])
+        #     print(detectionHistory.next_instance())
+        #     print(l)
+        #     l+=1
+        #print(allDetections)
+        #print(detectionHistory)
         self.training_report=detectionHistory 
         #print(k)
         
-    def describe_drifts(self):
+    def trainClassifier(self):
         #print(self.training_report.get_schema())
         #Usar uno de los tres algoritmos online de capymoa, tomando anteriormente el máximo en ventana
         #weakLearner=CategoricalNB()
@@ -340,7 +378,7 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
         #     #print(instance.y_label)
             
         #     #print(i)
-        #     #print(instance)
+            
 
             # probs=classifier.predict_proba(instance)
             # pred=classifier.predict(instance)
@@ -349,13 +387,14 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
             #         probsVector=np.zeros(2)
             #         probsVector[pred]=probs
             #         probs=probsVector
-
-            #     if probs[instance.y_index]<0.5:
-            #         print("Clasificación errónea en i=",i," con lecturas=",instance.x, ", probabilidad=", probs[instance.y_index], "para el valor correcto", instance.y_index," y predicción ",pred )
-            #     else:
-            #         print("Clasificación correcta en i=",i," con lecturas=",instance.x, ", probabilidad=", probs[instance.y_index], "para el valor correcto", instance.y_index )
-            # else:
-            #     print("Clasificación anómala en i=",i," con lecturas=",instance.x, "para el valor correcto", instance.y_index," y predicción ",pred )
+            #     if instance.y_index==1:
+            #         if probs[instance.y_index]<0.5:
+            #             print("Clasificación errónea en i=",i," con lecturas=",instance.x, ", probabilidad=", probs[instance.y_index], "para el valor correcto", instance.y_index," y predicción ",pred )
+            #         else:
+            #             print("Clasificación correcta en i=",i," con lecturas=",instance.x, ", probabilidad=", probs[instance.y_index], "para el valor correcto", instance.y_index )
+            #else:
+            #    print(instance)
+            #    print("Clasificación anómala en i=",i," con lecturas=",instance.x, "para el valor correcto", instance.y_index," y predicción ",pred )
             
         #     #if(i<=1211000):
             classifier.train(instance)
@@ -371,3 +410,5 @@ class EnsembleDetector: #Inheriting from BaseDriftDetector of MOADriftDetector w
         if self.cacheResults:
             self.store_results()
         #print(results.cumulative)
+
+
